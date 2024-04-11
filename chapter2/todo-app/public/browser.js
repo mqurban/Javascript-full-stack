@@ -1,6 +1,6 @@
 let createfield = document.getElementById("create-field");
 
-function itemTemplate() {
+function itemTemplate(item) {
     return ` <li class="list-group-item list-group-item-action d-flex align-items-center justify-content-between">
           <span class="item-text">${item.text}</span>
           <div>
@@ -9,14 +9,21 @@ function itemTemplate() {
           </div>
         </li>`
 }
+// initial Page Load Render 
+let ourHTML = items.map(function(item){
+    return itemTemplate(item)
+}).join('')
+document.getElementById("item-list").insertAdjacentHTML('beforeend', ourHTML)
+
+// Create Feature
 document.getElementById("create-form").addEventListener("submit", function(e){
     e.preventDefault()
 
-    axios.post('/create-item', {text: createfield.value}).then(function(){
+    axios.post('/create-item', {text: createfield.value}).then(function(response){
 
-        // Create html for a new form
-        // alert("you just created a new form")
-        document.getElementById("item-list").insertAdjacentHTML("beforeend", itemTemplate());
+        document.getElementById("item-list").insertAdjacentHTML("beforeend", itemTemplate(response.data));
+        createfield.value = ""
+        createfield.focus()
         
 
     }).catch(function(){

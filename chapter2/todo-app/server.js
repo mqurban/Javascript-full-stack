@@ -1,10 +1,17 @@
 let express = require('express');
 let app = express();
 let mongodb = require('mongodb');
-let db;
-app.use(express.static('public'))
+let sanitizeHTML = require('sanitize-html');
+let db
+let port = process.env.PORT 
 
-const connectionString = 'mongodb+srv://mianqurban525:vvxHP7hS7Wwn$hV@cluster0.ajm6sxj.mongodb.net/TodoApp?retryWrites=true&w=majority&appName=Cluster0';
+if (port == null || port == "") {
+  port = 3000
+}
+
+app.use(express.static('public'))
+// IN THIS STRING BELOW REPLACE YOUR USERNAME, PASSWORD AND MONGODB DATABASE NAME
+const connectionString = 'mongodb+srv://PLACE_MONGODB_DATABASE_USERNAME_HERE:PASSWORD_HERE@cluster0.ajm6sxj.mongodb.net/DATABASE_NAME_HERE?retryWrites=true&w=majority&appName=Cluster0';
 
 // Database connection
 mongodb.connect(connectionString, { useNewUrlParser: true, useUnifiedTopology: true }, (err, client) => {
@@ -13,17 +20,33 @@ mongodb.connect(connectionString, { useNewUrlParser: true, useUnifiedTopology: t
     return;
   }
   db = client.db();
-  app.listen(3000, () => {
-    console.log('Server is running on port 3000');
+  app.listen(port, () => {
+    // console.log('Server is running on port 3000');
   });
 });
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }));
 
-app.get('/', function(req, res) {
+function passwordProtected(req, res, next){
+  res.set('WWW-Authenticate', 'Basic realm="Todo App"' )
+
+  if (req.headers.authorization == "Basic cXVyYmFuOnRvZG8=") {
+    next()
+  }
+
+  else {
+    res.status(401).send("Authentication Required")
+  }
+
+}
+
+app.use(passwordProtected)
+
+app.get('/', passwordProtected ,function(req, res) {
   db.collection('items').find().toArray(function(err, items){
-    res.send(`<html>
+  res.send(`
+  <html>
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -44,19 +67,14 @@ app.get('/', function(req, res) {
       </div>
       
       <ul id="item-list" class="list-group pb-5">
-        ${items.map(function(item){
-          return ` <li class="list-group-item list-group-item-action d-flex align-items-center justify-content-between">
-          <span class="item-text">${item.text}</span>
-          <div>
-            <button data-id="${item._id}" class="edit-me btn btn-secondary btn-sm mr-1">Edit</button>
-            <button data-id="${item._id}" class="delete-me btn btn-danger btn-sm">Delete</button>
-          </div>
-        </li>`
-        }).join('')}
        
-      </ul>
-      
+      </ul> 
     </div>
+
+    <script> 
+    let items = ${JSON.stringify(items)}
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
     <script src="/browser.js">
     </script>
@@ -68,10 +86,10 @@ app.get('/', function(req, res) {
 
 app.post('/create-item', function(req, res) {
   if (db) {
-    db.collection('items').insertOne({ text: req.body.text }, () => {
-      // res.send('Thanks for submitting the form');
-      // res.redirect('/');
-      res.send("Success")
+    let safeText = sanitizeHTML(req.body.text, {allowedTags:[], allowedAttributes:{}})
+    db.collection('items').insertOne({ text: safeText }, function(err, info){
+
+      res.json(info.ops[0])
     });
   } else {
     res.send('Database not initialized');
@@ -83,12 +101,13 @@ app.post('/create-item', function(req, res) {
 
 app.post('/update-item', function(req, res) {
 
-  db.collection('items').findOneAndUpdate({_id: new mongodb.ObjectId(req.body.id)}, {$set: {text: req.body.text}}, function(){
+  let safeText = sanitizeHTML(req.body.text, {allowedTags:[], allowedAttributes:{}})
+  db.collection('items').findOneAndUpdate({_id: new mongodb.ObjectId(req.body.id)}, {$set: {text: safeText}}, function(){
     res.send('Updated');
   })
   
 })
-
+// safetext 
 
 app.post('/delete-item', function(req, res) {
 
